@@ -12,6 +12,14 @@ src_managed/
 project/boot/
 project/plugins/project/
 
+# Idea specific
+.idea/*
+.out/*
+
+# Gradle specific
+.gradle/*
+.build/*
+
 # Scala-IDE specific
 .scala_dependencies
 .worksheet
