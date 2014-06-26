@@ -11,6 +11,7 @@ import java.nio.file.{StandardOpenOption, Paths, Files}
 import org.apache.avro.io.DecoderFactory
 import java.util.jar.{JarEntry, JarOutputStream}
 import kafka.consumer.Whitelist
+import java.util.concurrent.TimeUnit
 
 class KafkaJarDownloader(topic: String,
                          groupId: String,
@@ -27,6 +28,9 @@ class KafkaJarDownloader(topic: String,
   val connector = Consumer.create(config)
 
   val filterSpec = new Whitelist(topic)
+  val maxWaitTimeout = 15000
+  
+  var lastUpdate = 0L
 
   info("Trying to start consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
   val stream = connector.createMessageStreamsByFilter(filterSpec, 1, new StringDecoder(), new StringDecoder()).head
@@ -47,6 +51,11 @@ class KafkaJarDownloader(topic: String,
     try {
       var currentFile = ""
       var writer: BufferedWriter = null
+
+      lastUpdate = System.currentTimeMillis()
+      val watcher = new Thread(new ConsumerWatcher)
+      watcher.setDaemon(true)
+      watcher.start()
       while (it.hasNext()) {
         debug("Trying to download file bit")
         val messageAndTopic = it.next()
@@ -83,15 +92,15 @@ class KafkaJarDownloader(topic: String,
 
             debug("Trying to write data for file %s".format(currentFile))
             writer.write(record.get("data").toString)
-            writer.newLine()
             debug("Wrote data for file %s".format(currentFile))
+
+            lastUpdate = System.currentTimeMillis()
           }
         }
       }
     } catch {
       case e: Exception => {
-        error(e)
-        close()
+        warn("Consumer has been stopped", e)
       }
     }
 
@@ -153,6 +162,19 @@ class KafkaJarDownloader(topic: String,
         target.closeEntry()
       } finally {
         if (in != null) in.close()
+      }
+    }
+  }
+  
+  class ConsumerWatcher extends Runnable {
+    override def run() {
+      while (!Thread.currentThread().isInterrupted) {
+        if (System.currentTimeMillis() - lastUpdate > maxWaitTimeout) {
+          close()
+          return
+        } else {
+          TimeUnit.SECONDS.sleep(5)
+        }
       }
     }
   }
