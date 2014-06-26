@@ -47,7 +47,7 @@ class KafkaJarDownloader(topic: String,
     try {
       var currentFile = ""
       var writer: BufferedWriter = null
-      while (it.hasNext) {
+      while (it.hasNext()) {
         debug("Trying to download file bit")
         val messageAndTopic = it.next()
         debug("Downloaded file bit")
@@ -68,13 +68,11 @@ class KafkaJarDownloader(topic: String,
 
             if (currentFile != record.get("name").toString) {
               debug("File %s has been successfully downloaded".format(currentFile))
-              try {
-                trace("Trying to close writer for file %s".format(currentFile))
-                if (writer != null) writer.close()
-                trace("Сlosed writer for file %s".format(currentFile))
-              } catch {
-                case e: IOException => warn(e.getMessage)
-              }
+
+              trace("Trying to close writer for file %s".format(currentFile))
+              if (writer != null) writer.close()
+              trace("Сlosed writer for file %s".format(currentFile))
+
               currentFile = record.get("name").toString
 
               trace("Trying to create new writer for file %s".format(currentFile))
@@ -97,6 +95,8 @@ class KafkaJarDownloader(topic: String,
       }
     }
 
+    info("Files has been successfully downloaded")
+
     new JarCreator(jarName, basePath.toString).create()
   }
 
@@ -109,10 +109,12 @@ class KafkaJarDownloader(topic: String,
   class JarCreator(jarName: String, srcDir: String) {
 
     def create() = {
+      info("Trying to create jar")
       val manifest: jar.Manifest = createManifest(srcDir)
       val target = new JarOutputStream(new FileOutputStream(jarName), manifest)
       add(new File(srcDir), target)
       target.close()
+      info("Jar has been created")
     }
 
     private def createManifest(srcDir: String): java.util.jar.Manifest = {
