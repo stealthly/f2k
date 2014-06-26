@@ -1,0 +1,19 @@
+{
+  "namespace": "ly.stealth.f2k",
+  "type" : "record",
+  "name" : "FileType",
+  "fields" : [
+    {
+        "name" : "path",
+        "type" : "string"
+    },
+    {
+        "name" : "name",
+        "type" : "string"
+    },
+    {
+        "name" : "data",
+        "type" : "string"
+    }
+  ]
+}

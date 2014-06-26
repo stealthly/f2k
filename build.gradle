@@ -1,14 +1,35 @@
 apply plugin: 'scala'
 
+mainClassName = "ly.stealth.f2k.Main"
+version = '1.0'
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'eu.appsatori:gradle-fatjar-plugin:0.2-rc1'
+    }
+}
+apply plugin: 'fatjar'
+
+fatJar {
+    manifest {
+        attributes("Main-Class": mainClassName,
+                "Implementation-Version": version)
+    }
+}
+
 repositories {
 	mavenCentral()
 }
 
 dependencies {
-	compile 'org.scala-lang:scala-library:2.9.1'
+	compile 'org.scala-lang:scala-library:2.10.3'
 	compile 'org.apache.kafka:kafka_2.10:0.8.1.1'
 	compile 'log4j:log4j:1.2.17'
-	compile 'org.apache.avro:avro:1.7.5'
+	compile 'org.apache.avro:avro:1.7.6'
 	testCompile 'org.specs2:specs2_2.10:2.2.2'
 	testCompile 'org.scalatest:scalatest_2.10:2.0'
 }
