@@ -136,7 +136,7 @@ class KafkaDownloader(topic: String,
           close()
           return
         } else {
-          TimeUnit.SECONDS.sleep(5)
+          TimeUnit.MILLISECONDS.sleep(maxWaitTimeout)
         }
       }
     }
