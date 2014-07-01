@@ -10,8 +10,12 @@ import org.apache.avro.Schema.Parser
 import kafka.utils.Logging
 import org.apache.avro.io.EncoderFactory
 import org.apache.avro.generic.{GenericDatumWriter, GenericData}
+import java.nio.file._
+import java.nio.file.attribute.BasicFileAttributes
+import kafka.producer.KeyedMessage
+import java.nio.charset.{StandardCharsets, Charset}
 
-class KafkaJarUploader(brokerList: String,
+class KafkaUploader(brokerList: String,
 
                        /** brokerList
                          * This is for bootstrapping and the producer will only use it for getting metadata (topics, partitions and replicas).
@@ -86,26 +90,31 @@ class KafkaJarUploader(brokerList: String,
   val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
   val writer = new GenericDatumWriter[Record](schema)
 
-  def upload(jarPath: String, topic: String) = {
-    val sourceJar = new JarFile(jarPath)
-    val entries = sourceJar.entries()
-    while (entries.hasMoreElements) {
-      val entry = entries.nextElement
-      if (!entry.isDirectory) {
-        val reader = new BufferedReader(new InputStreamReader(sourceJar.getInputStream(entry)))
-        var line: String = reader.readLine()
-        while (line != null) {
-          val record = new Record(schema)
-          val file = new File(entry.getName)
-          record.put("path", if (file.getParent == null) "/" else file.getParent)
-          record.put("name", file.getName)
-          record.put("data", line)
+  def upload(basePath: String, topic: String) = {
+    val pathToIterate: Path = Paths.get(basePath)
+    val baseFileName: String = pathToIterate.getFileName.toString
+    Files.walkFileTree(pathToIterate, new SimpleFileVisitor[Path]() {
+      override def visitFile(file: Path, attrs: BasicFileAttributes) = {
+        val reader = new BufferedReader(new InputStreamReader(Files.newInputStream(file)))
+        try {
+          var line: String = reader.readLine()
+          val fileName: String = file.getFileName.toString
+          val parentPath: String = pathToIterate.relativize(file.getParent).toString
+          while (line != null) {
+            val record = new Record(schema)
+            record.put("path", parentPath)
+            record.put("name", fileName)
+            record.put("data", line)
 
-          send(topic, new File(sourceJar.getName).getName, record)
-          line = reader.readLine()
+            send(topic, baseFileName, record)
+            line = reader.readLine()
+          }
+          FileVisitResult.CONTINUE
+        } finally {
+          reader.close()
         }
       }
-    }
+    })
     producer.close()
   }
 

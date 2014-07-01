@@ -9,11 +9,11 @@ import org.apache.avro.Schema.Parser
 import java.io._
 import java.nio.file.{StandardOpenOption, Paths, Files}
 import org.apache.avro.io.DecoderFactory
-import java.util.jar.{JarEntry, JarOutputStream}
+import java.util.jar.JarEntry
 import kafka.consumer.Whitelist
 import java.util.concurrent.TimeUnit
 
-class KafkaJarDownloader(topic: String,
+class KafkaDownloader(topic: String,
                          groupId: String,
                          zookeeperConnect: String,
                          zkSessionTimeoutMs: Int = 30000,
@@ -35,15 +35,13 @@ class KafkaJarDownloader(topic: String,
   info("Trying to start consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
   val stream = connector.createMessageStreamsByFilter(filterSpec, 1, new StringDecoder(), new StringDecoder()).head
   info("Started consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
-
-  val tmpPath = Paths.get("/tmp")
   
   val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
   val datumReader = new GenericDatumReader[GenericRecord](schema)
   val datum = new GenericData.Record(schema)
 
-  def download(jarName: String) = {
-    val basePath = tmpPath.resolve(jarName.replace(".jar", ""))
+  def download(pathToDownload: String, destination: String) = {
+    val basePath = Paths.get(destination).resolve(pathToDownload)
     if (!Files.exists(basePath)) {
       Files.createDirectory(basePath)
     }
@@ -60,7 +58,7 @@ class KafkaJarDownloader(topic: String,
         debug("Trying to download file bit")
         val messageAndTopic = it.next()
         debug("Downloaded file bit")
-        if (messageAndTopic.key() == jarName) {
+        if (messageAndTopic.key() == pathToDownload) {
           if (!messageAndTopic.message().isEmpty) {
             debug("Trying to decode file bit")
             val decoder = DecoderFactory.get().jsonDecoder(schema, messageAndTopic.message())
@@ -92,6 +90,7 @@ class KafkaJarDownloader(topic: String,
 
             debug("Trying to write data for file %s".format(currentFile))
             writer.write(record.get("data").toString)
+            writer.newLine()
             debug("Wrote data for file %s".format(currentFile))
 
             lastUpdate = System.currentTimeMillis()
@@ -105,65 +104,12 @@ class KafkaJarDownloader(topic: String,
     }
 
     info("Files has been successfully downloaded")
-
-    new JarCreator(jarName, basePath.toString).create()
   }
 
   def close() = {
     info("Shutting down consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
     connector.shutdown()
     info("Shut down consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
-  }
-
-  class JarCreator(jarName: String, srcDir: String) {
-
-    def create() = {
-      info("Trying to create jar")
-      val manifest: jar.Manifest = createManifest(srcDir)
-      val target = new JarOutputStream(new FileOutputStream(jarName), manifest)
-      add(new File(srcDir), target)
-      target.close()
-      info("Jar has been created")
-    }
-
-    private def createManifest(srcDir: String): java.util.jar.Manifest = {
-      new java.util.jar.Manifest(new FileInputStream(Paths.get(srcDir).resolve("META-INF/MANIFEST.MF").toFile))
-    }
-
-    private def add(source: File, target: JarOutputStream) {
-      var in: BufferedInputStream = null
-      try {
-        if (source.isDirectory) {
-          var name: String = source.getPath.replace(srcDir, "").replace("\\", "/")
-          if (!name.isEmpty) {
-            if (!name.endsWith("/")) name += "/"
-            val entry = new JarEntry(name)
-            entry.setTime(source.lastModified)
-            target.putNextEntry(entry)
-            target.closeEntry()
-          }
-          for (nestedFile <- source.listFiles) add(nestedFile, target)
-
-          return
-        }
-
-        if (source.getName == "MANIFEST.MF") return
-
-        val entry = new JarEntry(source.getPath.replace(srcDir, "").replace("\\", "/"))
-        entry.setTime(source.lastModified)
-        target.putNextEntry(entry)
-        in = new BufferedInputStream(new FileInputStream(source))
-        val buffer: Array[Byte] = new Array[Byte](1024)
-        while (true) {
-          val count: Int = in.read(buffer)
-          if (count == -1) return
-          target.write(buffer, 0, count)
-        }
-        target.closeEntry()
-      } finally {
-        if (in != null) in.close()
-      }
-    }
   }
   
   class ConsumerWatcher extends Runnable {
