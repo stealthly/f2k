@@ -19,14 +19,14 @@ package ly.stealth.f2k
 
 object Main extends App {
   if (args.length < 5)
-    throw new IllegalArgumentException("Usage: (download|upload) (pathToUpload|directoryToDownload) kafkaTopic (kafkaConnect|zookeeperConnect) (downloadLocation|metadataOnly)")
+    throw new IllegalArgumentException("Usage: (download|upload) (pathToUpload|directoryToDownload) kafkaTopic (kafkaConnect|zookeeperConnect) (downloadLocation|metadataOnly) partition")
 
   if (args(0) == "upload") {
     val uploader = new KafkaUploader(args(3))
-    uploader.upload(args(1), args(2), args(4).toBoolean)
+    uploader.upload(args(1), args(2), args(5).toInt, args(4).toBoolean)
   } else if (args(0) == "download") {
     val downloader = new KafkaDownloader(args(2), "group", args(3))
-    downloader.download(args(1), args(4))
+    downloader.download(args(1), args(4), args(5).toInt)
     downloader.close()
   } else {
     throw new IllegalArgumentException("You should provide either upload or download option")

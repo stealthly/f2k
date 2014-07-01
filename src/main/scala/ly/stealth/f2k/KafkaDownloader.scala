@@ -57,7 +57,7 @@ class KafkaDownloader(topic: String,
   val datumReader = new GenericDatumReader[GenericRecord](schema)
   val datum = new GenericData.Record(schema)
 
-  def download(pathToDownload: String, destination: String) = {
+  def download(pathToDownload: String, destination: String, partition: Int) = {
     val basePath = Paths.get(destination).resolve(pathToDownload)
     if (!Files.exists(basePath)) {
       Files.createDirectory(basePath)
@@ -75,7 +75,7 @@ class KafkaDownloader(topic: String,
         debug("Trying to download file bit")
         val messageAndTopic = it.next()
         debug("Downloaded file bit")
-        if (messageAndTopic.key() == pathToDownload) {
+        if (messageAndTopic.key() == pathToDownload && messageAndTopic.partition == partition) {
           if (!messageAndTopic.message().isEmpty) {
             debug("Trying to decode file bit")
             val decoder = DecoderFactory.get().jsonDecoder(schema, messageAndTopic.message())
@@ -107,6 +107,7 @@ class KafkaDownloader(topic: String,
 
             debug("Trying to write data for file %s".format(currentFile))
             out.write(record.get("data").asInstanceOf[Utf8].getBytes)
+            out.flush()
             debug("Wrote data for file %s".format(currentFile))
 
             lastUpdate = System.currentTimeMillis()

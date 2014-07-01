@@ -29,6 +29,7 @@ import org.apache.avro.generic.GenericDatumWriter
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
 import kafka.producer.KeyedMessage
+import java.util
 
 class KafkaUploader(brokerList: String,
 
@@ -105,7 +106,7 @@ class KafkaUploader(brokerList: String,
   val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
   val writer = new GenericDatumWriter[Record](schema)
 
-  def upload(basePath: String, topic: String, metaDataOnly: Boolean = false) = {
+  def upload(basePath: String, topic: String, partition: Int, metaDataOnly: Boolean = false) = {
     val pathToIterate: Path = Paths.get(basePath)
     val baseFileName: String = pathToIterate.getFileName.toString
     Files.walkFileTree(pathToIterate, new SimpleFileVisitor[Path]() {
@@ -119,16 +120,20 @@ class KafkaUploader(brokerList: String,
         if (!metaDataOnly) uploadData()
         else {
           record.put("data", "")
-          send(topic, baseFileName, record)
+          send(topic, baseFileName, partition, record)
         }
 
         def uploadData() {
           val in = new BufferedInputStream(Files.newInputStream(file))
           try {
             val bytes = new Array[Byte](1024)
-            while (in.read(bytes) > 0) {
-              record.put("data", new java.lang.String(bytes))
-              send(topic, baseFileName, record)
+            var bytesRead = in.read(bytes)
+            while (bytesRead > 0) {
+              if (bytesRead < bytes.length) record.put("data", new java.lang.String(util.Arrays.copyOf(bytes, bytesRead)))
+              else record.put("data", new java.lang.String(bytes))
+
+              send(topic, baseFileName, partition, record)
+              bytesRead = in.read(bytes)
             }
           } finally {
             in.close()
@@ -141,8 +146,8 @@ class KafkaUploader(brokerList: String,
     producer.close()
   }
 
-  private def send(topic: String, key: String, record: Record) = {
-    producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), serialized.getBytes("UTF-8")))
+  private def send(topic: String, key: String, partition: Int, record: Record) = {
+    producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), partition, serialized.getBytes("UTF-8")))
 
     def serialized: String = {
       val out: ByteArrayOutputStream = new ByteArrayOutputStream()
