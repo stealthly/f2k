@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,7 @@
 package ly.stealth.f2k
 
 import kafka.utils.Logging
-import java.util.{jar, Properties}
+import java.util.Properties
 import kafka.consumer.{Consumer, ConsumerConfig}
 import kafka.serializer.StringDecoder
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericRecord}
@@ -26,15 +26,14 @@ import org.apache.avro.Schema.Parser
 import java.io._
 import java.nio.file.{StandardOpenOption, Paths, Files}
 import org.apache.avro.io.DecoderFactory
-import java.util.jar.JarEntry
 import kafka.consumer.Whitelist
 import java.util.concurrent.TimeUnit
 
 class KafkaDownloader(topic: String,
-                         groupId: String,
-                         zookeeperConnect: String,
-                         zkSessionTimeoutMs: Int = 30000,
-                         readFromStartOfStream: Boolean = true) extends Logging {
+                      groupId: String,
+                      zookeeperConnect: String,
+                      zkSessionTimeoutMs: Int = 30000,
+                      readFromStartOfStream: Boolean = true) extends Logging {
   val props = new Properties()
   props.put("group.id", groupId)
   props.put("zookeeper.connect", zookeeperConnect)
@@ -46,13 +45,13 @@ class KafkaDownloader(topic: String,
 
   val filterSpec = new Whitelist(topic)
   val maxWaitTimeout = 15000
-  
+
   var lastUpdate = 0L
 
   info("Trying to start consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
   val stream = connector.createMessageStreamsByFilter(filterSpec, 1, new StringDecoder(), new StringDecoder()).head
   info("Started consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
-  
+
   val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
   val datumReader = new GenericDatumReader[GenericRecord](schema)
   val datum = new GenericData.Record(schema)
@@ -128,7 +127,7 @@ class KafkaDownloader(topic: String,
     connector.shutdown()
     info("Shut down consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
   }
-  
+
   class ConsumerWatcher extends Runnable {
     override def run() {
       while (!Thread.currentThread().isInterrupted) {
