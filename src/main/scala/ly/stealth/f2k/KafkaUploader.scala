@@ -107,25 +107,35 @@ class KafkaUploader(brokerList: String,
   val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
   val writer = new GenericDatumWriter[Record](schema)
 
-  def upload(basePath: String, topic: String) = {
+  def upload(basePath: String, topic: String, metaDataOnly: Boolean = false) = {
     val pathToIterate: Path = Paths.get(basePath)
     val baseFileName: String = pathToIterate.getFileName.toString
     Files.walkFileTree(pathToIterate, new SimpleFileVisitor[Path]() {
       override def visitFile(file: Path, attrs: BasicFileAttributes) = {
         val reader = new BufferedReader(new InputStreamReader(Files.newInputStream(file)))
         try {
-          var line: String = reader.readLine()
           val fileName: String = file.getFileName.toString
           val parentPath: String = pathToIterate.relativize(file.getParent).toString
-          while (line != null) {
-            val record = new Record(schema)
-            record.put("path", parentPath)
-            record.put("name", fileName)
-            record.put("data", line)
+          val record = new Record(schema)
+          record.put("path", parentPath)
+          record.put("name", fileName)
 
+          if (!metaDataOnly) uploadData()
+          else {
+            record.put("data", "")
             send(topic, baseFileName, record)
-            line = reader.readLine()
           }
+
+          def uploadData() {
+            var line: String = reader.readLine()
+            while (line != null) {
+              record.put("data", line)
+
+              send(topic, baseFileName, record)
+              line = reader.readLine()
+            }
+          }
+
           FileVisitResult.CONTINUE
         } finally {
           reader.close()
