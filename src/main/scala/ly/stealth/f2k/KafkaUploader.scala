@@ -20,16 +20,15 @@ package ly.stealth.f2k
 import java.util.{Properties, UUID}
 import kafka.message.{NoCompressionCodec, DefaultCompressionCodec}
 import kafka.producer.{ProducerConfig, Producer}
-import java.io.{ByteArrayOutputStream, InputStreamReader, BufferedReader}
+import java.io.{BufferedInputStream, ByteArrayOutputStream}
 import org.apache.avro.generic.GenericData.Record
 import org.apache.avro.Schema.Parser
 import kafka.utils.Logging
 import org.apache.avro.io.EncoderFactory
-import org.apache.avro.generic.{GenericDatumWriter, GenericData}
+import org.apache.avro.generic.GenericDatumWriter
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
 import kafka.producer.KeyedMessage
-import java.nio.charset.StandardCharsets
 
 class KafkaUploader(brokerList: String,
 
@@ -111,34 +110,32 @@ class KafkaUploader(brokerList: String,
     val baseFileName: String = pathToIterate.getFileName.toString
     Files.walkFileTree(pathToIterate, new SimpleFileVisitor[Path]() {
       override def visitFile(file: Path, attrs: BasicFileAttributes) = {
-        val reader = new BufferedReader(new InputStreamReader(Files.newInputStream(file)))
-        try {
-          val fileName: String = file.getFileName.toString
-          val parentPath: String = pathToIterate.relativize(file.getParent).toString
-          val record = new Record(schema)
-          record.put("path", parentPath)
-          record.put("name", fileName)
+        val fileName: String = file.getFileName.toString
+        val parentPath: String = pathToIterate.relativize(file.getParent).toString
+        val record = new Record(schema)
+        record.put("path", parentPath)
+        record.put("name", fileName)
 
-          if (!metaDataOnly) uploadData()
-          else {
-            record.put("data", "")
-            send(topic, baseFileName, record)
-          }
-
-          def uploadData() {
-            var line: String = reader.readLine()
-            while (line != null) {
-              record.put("data", line)
-
-              send(topic, baseFileName, record)
-              line = reader.readLine()
-            }
-          }
-
-          FileVisitResult.CONTINUE
-        } finally {
-          reader.close()
+        if (!metaDataOnly) uploadData()
+        else {
+          record.put("data", "")
+          send(topic, baseFileName, record)
         }
+
+        def uploadData() {
+          val in = new BufferedInputStream(Files.newInputStream(file))
+          try {
+            val bytes = new Array[Byte](1024)
+            while (in.read(bytes) > 0) {
+              record.put("data", new java.lang.String(bytes))
+              send(topic, baseFileName, record)
+            }
+          } finally {
+            in.close()
+          }
+        }
+
+        FileVisitResult.CONTINUE
       }
     })
     producer.close()

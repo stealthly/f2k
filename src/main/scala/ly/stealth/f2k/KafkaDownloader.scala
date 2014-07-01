@@ -28,6 +28,7 @@ import java.nio.file.{StandardOpenOption, Paths, Files}
 import org.apache.avro.io.DecoderFactory
 import kafka.consumer.Whitelist
 import java.util.concurrent.TimeUnit
+import org.apache.avro.util.Utf8
 
 class KafkaDownloader(topic: String,
                       groupId: String,
@@ -64,7 +65,7 @@ class KafkaDownloader(topic: String,
     val it = stream.iterator()
     try {
       var currentFile = ""
-      var writer: BufferedWriter = null
+      var out: BufferedOutputStream = null
 
       lastUpdate = System.currentTimeMillis()
       val watcher = new Thread(new ConsumerWatcher)
@@ -92,21 +93,20 @@ class KafkaDownloader(topic: String,
             if (currentFile != record.get("name").toString) {
               debug("File %s has been successfully downloaded".format(currentFile))
 
-              trace("Trying to close writer for file %s".format(currentFile))
-              if (writer != null) writer.close()
-              trace("Сlosed writer for file %s".format(currentFile))
+              trace("Trying to close out for file %s".format(currentFile))
+              if (out != null) out.close()
+              trace("Сlosed out for file %s".format(currentFile))
 
               currentFile = record.get("name").toString
 
-              trace("Trying to create new writer for file %s".format(currentFile))
-              writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(path.resolve(record.get("name").toString),
-                                                                                       StandardOpenOption.APPEND, StandardOpenOption.CREATE)))
-              trace("Created new writer for file %s".format(currentFile))
+              trace("Trying to create new out for file %s".format(currentFile))
+              out = new BufferedOutputStream(Files.newOutputStream(path.resolve(record.get("name").toString),
+                                                                      StandardOpenOption.APPEND, StandardOpenOption.CREATE))
+              trace("Created new out for file %s".format(currentFile))
             }
 
             debug("Trying to write data for file %s".format(currentFile))
-            writer.write(record.get("data").toString)
-            writer.newLine()
+            out.write(record.get("data").asInstanceOf[Utf8].getBytes)
             debug("Wrote data for file %s".format(currentFile))
 
             lastUpdate = System.currentTimeMillis()
