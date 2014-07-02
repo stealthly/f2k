@@ -106,44 +106,54 @@ class KafkaUploader(brokerList: String,
   val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
   val writer = new GenericDatumWriter[Record](schema)
 
-  def upload(basePath: String, topic: String, partition: Int, metaDataOnly: Boolean = false) = {
-    val pathToIterate: Path = Paths.get(basePath)
-    val baseFileName: String = pathToIterate.getFileName.toString
-    Files.walkFileTree(pathToIterate, new SimpleFileVisitor[Path]() {
-      override def visitFile(file: Path, attrs: BasicFileAttributes) = {
-        val fileName: String = file.getFileName.toString
-        val parentPath: String = pathToIterate.relativize(file.getParent).toString
-        val record = new Record(schema)
-        record.put("path", parentPath)
-        record.put("name", fileName)
-
-        if (!metaDataOnly) uploadData()
-        else {
-          record.put("data", "")
-          send(topic, baseFileName, partition, record)
+  def upload(rawBasePath: String, topic: String, partition: Int, metadataOnly: Boolean = false) = {
+    val basePath: Path = Paths.get(rawBasePath)
+    val baseFileName: String = basePath.getFileName.toString
+    if (Files.isDirectory(basePath)) {
+      Files.walkFileTree(basePath, new SimpleFileVisitor[Path]() {
+        override def visitFile(file: Path, attrs: BasicFileAttributes) = {
+          uploadFile(file, basePath, baseFileName, topic, partition, metadataOnly)
+          FileVisitResult.CONTINUE
         }
-
-        def uploadData() {
-          val in = new BufferedInputStream(Files.newInputStream(file))
-          try {
-            val bytes = new Array[Byte](1024)
-            var bytesRead = in.read(bytes)
-            while (bytesRead > 0) {
-              if (bytesRead < bytes.length) record.put("data", new java.lang.String(util.Arrays.copyOf(bytes, bytesRead)))
-              else record.put("data", new java.lang.String(bytes))
-
-              send(topic, baseFileName, partition, record)
-              bytesRead = in.read(bytes)
-            }
-          } finally {
-            in.close()
-          }
-        }
-
-        FileVisitResult.CONTINUE
-      }
-    })
+      })
+    } else {
+      uploadFile(basePath, basePath, baseFileName, topic, partition, metadataOnly)
+    }
     producer.close()
+  }
+  
+  private def uploadFile(file: Path, basePath: Path, baseFileName: String, topic: String, partition: Int, metadataOnly: Boolean) {
+    val fileName: String = file.getFileName.toString
+    var parentPath: String = ""
+    if (!file.equals(basePath)) {
+      parentPath = basePath.relativize(file.getParent).toString
+    }
+    val record = new Record(schema)
+    record.put("path", parentPath)
+    record.put("name", fileName)
+
+    if (!metadataOnly) uploadData()
+    else {
+      record.put("data", "")
+      send(topic, baseFileName, partition, record)
+    }
+
+    def uploadData() {
+      val in = new BufferedInputStream(Files.newInputStream(file))
+      try {
+        val bytes = new Array[Byte](1024)
+        var bytesRead = in.read(bytes)
+        while (bytesRead > 0) {
+          if (bytesRead < bytes.length) record.put("data", new java.lang.String(util.Arrays.copyOf(bytes, bytesRead)))
+          else record.put("data", new java.lang.String(bytes))
+
+          send(topic, baseFileName, partition, record)
+          bytesRead = in.read(bytes)
+        }
+      } finally {
+        in.close()
+      }
+    }
   }
 
   private def send(topic: String, key: String, partition: Int, record: Record) = {
