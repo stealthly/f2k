@@ -30,6 +30,8 @@ import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
 import kafka.producer.KeyedMessage
 import java.util
+import java.nio.ByteBuffer
+import java.nio.charset.Charset
 
 class KafkaUploader(brokerList: String,
 
@@ -144,8 +146,8 @@ class KafkaUploader(brokerList: String,
         val bytes = new Array[Byte](1024)
         var bytesRead = in.read(bytes)
         while (bytesRead > 0) {
-          if (bytesRead < bytes.length) record.put("data", new java.lang.String(util.Arrays.copyOf(bytes, bytesRead)))
-          else record.put("data", new java.lang.String(bytes))
+          if (bytesRead < bytes.length) record.put("data", ByteBuffer.wrap(util.Arrays.copyOf(bytes, bytesRead)))
+          else record.put("data", ByteBuffer.wrap(bytes))
 
           send(topic, baseFileName, partition, record)
           bytesRead = in.read(bytes)
@@ -159,7 +161,7 @@ class KafkaUploader(brokerList: String,
   private def send(topic: String, key: String, partition: Int, record: Record) = {
     producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), partition, serialized.getBytes("UTF-8")))
 
-    def serialized: String = {
+    def serialized = {
       val out: ByteArrayOutputStream = new ByteArrayOutputStream()
       val encoder = EncoderFactory.get().jsonEncoder(schema, out)
       writer.write(record, encoder)

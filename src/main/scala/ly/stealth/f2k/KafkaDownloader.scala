@@ -29,6 +29,7 @@ import org.apache.avro.io.DecoderFactory
 import kafka.consumer.Whitelist
 import java.util.concurrent.TimeUnit
 import org.apache.avro.util.Utf8
+import java.nio.ByteBuffer
 
 class KafkaDownloader(topic: String,
                       groupId: String,
@@ -106,7 +107,7 @@ class KafkaDownloader(topic: String,
             }
 
             debug("Trying to write data for file %s".format(currentFile))
-            out.write(record.get("data").asInstanceOf[Utf8].getBytes)
+            out.write(record.get("data").asInstanceOf[ByteBuffer].array())
             out.flush()
             debug("Wrote data for file %s".format(currentFile))
 

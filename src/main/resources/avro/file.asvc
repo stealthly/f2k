@@ -13,7 +13,7 @@
     },
     {
         "name" : "data",
-        "type" : "string"
+        "type" : "bytes"
     }
   ]
 }
