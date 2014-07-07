@@ -19,6 +19,7 @@ Instructions to run in environment
 ==================================
 
 To upload 
+
     java -jar build/libs/f2k-1.0.jar upload /path/to/dir/or/file/to/upload topicName localhost:9092 (false|true) (protobuf|avro)
 
 To download 
