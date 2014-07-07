@@ -6,14 +6,17 @@ Enables you to mirror(download and upload) directory structure with all files or
 Instructions to assemble
 =========================
 
-./gradlew clean fatJar        
+    ./gradlew clean fatJar        
 Once it's done, jar file is going to be available in build/libs/ directory
 
 Instructions to setup environment
 =================================
 
-./bootstrap.sh or ./shutdown.sh to launch or shutdown environment correspondingly.    
-Once it's done you have kafka and zookeeper up and running at localhost on ports 9092 and 2181 correspondingly
+To launch Docker development enviornment
+
+    ./bootstrap.sh 
+
+Once it's done you have kafka and zookeeper up and running at localhost on ports 9092 and 2181 respectively 
 
 Instructions to run in environment
 ==================================
