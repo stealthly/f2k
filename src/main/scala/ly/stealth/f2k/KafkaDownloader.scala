@@ -20,7 +20,7 @@ package ly.stealth.f2k
 import kafka.utils.Logging
 import java.util.Properties
 import kafka.consumer.{Consumer, ConsumerConfig}
-import kafka.serializer.StringDecoder
+import kafka.serializer.{DefaultDecoder, StringDecoder}
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericRecord}
 import org.apache.avro.Schema.Parser
 import java.io._
@@ -30,6 +30,8 @@ import kafka.consumer.Whitelist
 import java.util.concurrent.TimeUnit
 import org.apache.avro.util.Utf8
 import java.nio.ByteBuffer
+import org.apache.avro.reflect.ReflectDatumReader
+import org.apache.avro.generic.GenericData.Record
 
 class KafkaDownloader(topic: String,
                       groupId: String,
@@ -51,11 +53,11 @@ class KafkaDownloader(topic: String,
   var lastUpdate = 0L
 
   info("Trying to start consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
-  val stream = connector.createMessageStreamsByFilter(filterSpec, 1, new StringDecoder(), new StringDecoder()).head
+  val stream = connector.createMessageStreamsByFilter(filterSpec, 1, new StringDecoder(), new DefaultDecoder()).head
   info("Started consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
 
   val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
-  val datumReader = new GenericDatumReader[GenericRecord](schema)
+  val datumReader = new GenericDatumReader[Record](schema)
   val datum = new GenericData.Record(schema)
 
   def download(pathToDownload: Path) = {
@@ -76,7 +78,7 @@ class KafkaDownloader(topic: String,
         if (path.startsWith(pathToDownload)) {
           if (!messageAndTopic.message().isEmpty) {
             debug("Trying to decode file bit")
-            val decoder = DecoderFactory.get().jsonDecoder(schema, messageAndTopic.message())
+            val decoder = DecoderFactory.get().binaryDecoder(messageAndTopic.message(), null)
             val record = datumReader.read(datum, decoder)
             debug("File bit has been decoded")
 

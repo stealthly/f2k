@@ -155,15 +155,15 @@ class KafkaUploader(brokerList: String,
   }
 
   private def send(topic: String, key: String, fileName: String, record: Record) = {
-    producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), fileName, serialized.getBytes("UTF-8")))
+    producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), fileName, serialized))
 
     def serialized = {
       val out: ByteArrayOutputStream = new ByteArrayOutputStream()
-      val encoder = EncoderFactory.get().jsonEncoder(schema, out)
+      val encoder = EncoderFactory.get().binaryEncoder(out, null)
       writer.write(record, encoder)
       encoder.flush()
       out.flush()
-      out.toString
+      out.toByteArray
     }
   }
 }
