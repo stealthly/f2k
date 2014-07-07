@@ -20,17 +20,13 @@ package ly.stealth.f2k
 import java.util.{Properties, UUID}
 import kafka.message.{NoCompressionCodec, DefaultCompressionCodec}
 import kafka.producer.{ProducerConfig, Producer}
-import java.io.{BufferedInputStream, ByteArrayOutputStream}
-import org.apache.avro.generic.GenericData.Record
-import org.apache.avro.Schema.Parser
+import java.io.BufferedInputStream
 import kafka.utils.Logging
-import org.apache.avro.io.EncoderFactory
-import org.apache.avro.generic.GenericDatumWriter
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
 import kafka.producer.KeyedMessage
 import java.util
-import java.nio.ByteBuffer
+import ly.stealth.f2k.serialization.{FileAndMetadata, FileTypeEncoder}
 
 class KafkaUploader(brokerList: String,
 
@@ -40,6 +36,12 @@ class KafkaUploader(brokerList: String,
                       * the metadata. The format is host1:port1,host2:port2, and the list can be a subset of brokers or a VIP pointing to a
                       * subset of brokers.
                       */
+
+                    encoderType: String,
+
+                    /** encoderType
+                    * Determines what provider to user for serialization.
+                    * */
 
                     clientId: String = UUID.randomUUID().toString,
 
@@ -104,8 +106,7 @@ class KafkaUploader(brokerList: String,
   props.put("client.id", clientId.toString)
 
   val producer = new Producer[AnyRef, AnyRef](new ProducerConfig(props))
-  val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
-  val writer = new GenericDatumWriter[Record](schema)
+  val encoder = FileTypeEncoder.encoder(encoderType)
 
   def upload(rawBasePath: String, topic: String, metadataOnly: Boolean = false) = {
     val basePath: Path = Paths.get(rawBasePath)
@@ -129,10 +130,10 @@ class KafkaUploader(brokerList: String,
     val path = file.toString
     val fileName = file.getFileName.toString
 
-    val record = new Record(schema)
+    val record = new FileAndMetadata(new Array[Byte](0))
     if (!metadataOnly) uploadData()
     else {
-      record.put("data", "")
+      record.data = new Array[Byte](0)
       send(topic, path, fileName, record)
     }
 
@@ -142,8 +143,8 @@ class KafkaUploader(brokerList: String,
         val bytes = new Array[Byte](1024)
         var bytesRead = in.read(bytes)
         while (bytesRead > 0) {
-          if (bytesRead < bytes.length) record.put("data", ByteBuffer.wrap(util.Arrays.copyOf(bytes, bytesRead)))
-          else record.put("data", ByteBuffer.wrap(bytes))
+          if (bytesRead < bytes.length) record.data = util.Arrays.copyOf(bytes, bytesRead)
+          else record.data = bytes
 
           send(topic, path, fileName, record)
           bytesRead = in.read(bytes)
@@ -154,16 +155,7 @@ class KafkaUploader(brokerList: String,
     }
   }
 
-  private def send(topic: String, key: String, fileName: String, record: Record) = {
-    producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), fileName, serialized))
-
-    def serialized = {
-      val out: ByteArrayOutputStream = new ByteArrayOutputStream()
-      val encoder = EncoderFactory.get().binaryEncoder(out, null)
-      writer.write(record, encoder)
-      encoder.flush()
-      out.flush()
-      out.toByteArray
-    }
+  private def send(topic: String, key: String, fileName: String, record: FileAndMetadata) = {
+    producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), fileName, encoder.encode(record)))
   }
 }

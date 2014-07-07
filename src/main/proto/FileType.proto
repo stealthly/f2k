@@ -1,0 +1,6 @@
+option java_package = "ly.stealth.f2k";
+option java_outer_classname = "FileTypes";
+
+message FileType {
+  optional bytes data = 1;
+}

@@ -21,14 +21,14 @@ import java.nio.file.Paths
 
 object Main extends App {
   if (args.length < 4)
-    throw new IllegalArgumentException("Usage: (download|upload) (pathToUpload|directoryToDownload) kafkaTopic (kafkaConnect|zookeeperConnect) metadataOnly")
+    throw new IllegalArgumentException("Usage: (download|upload) (pathToUpload|directoryToDownload) kafkaTopic (kafkaConnect|zookeeperConnect) metadataOnly encoder")
 
   if (args(0) == "upload") {
-    val uploader = new KafkaUploader(args(3))
+    val uploader = new KafkaUploader(args(3), args(5))
     uploader.upload(args(1), args(2), args(4).toBoolean)
     uploader.close()
   } else if (args(0) == "download") {
-    val downloader = new KafkaDownloader(args(2), "group", args(3))
+    val downloader = new KafkaDownloader(args(2), "group", args(3), args(4))
     downloader.download(Paths.get(args(1)))
     downloader.close()
   } else {

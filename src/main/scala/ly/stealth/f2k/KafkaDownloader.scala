@@ -32,10 +32,12 @@ import org.apache.avro.util.Utf8
 import java.nio.ByteBuffer
 import org.apache.avro.reflect.ReflectDatumReader
 import org.apache.avro.generic.GenericData.Record
+import ly.stealth.f2k.serialization.FileTypeDecoder
 
 class KafkaDownloader(topic: String,
                       groupId: String,
-                      zookeeperConnect: String,
+                      zookeeperConnect: String, 
+                      decoderType: String,
                       zkSessionTimeoutMs: Int = 30000,
                       readFromStartOfStream: Boolean = true) extends Logging {
   val props = new Properties()
@@ -51,14 +53,12 @@ class KafkaDownloader(topic: String,
   val maxWaitTimeout = 15000
 
   var lastUpdate = 0L
+  
+  var decoder = FileTypeDecoder.decoder(decoderType)
 
   info("Trying to start consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
   val stream = connector.createMessageStreamsByFilter(filterSpec, 1, new StringDecoder(), new DefaultDecoder()).head
   info("Started consumer: topic=%s for zk=%s and groupId=%s".format(topic, zookeeperConnect, groupId))
-
-  val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
-  val datumReader = new GenericDatumReader[Record](schema)
-  val datum = new GenericData.Record(schema)
 
   def download(pathToDownload: Path) = {
     val it = stream.iterator()
@@ -78,8 +78,7 @@ class KafkaDownloader(topic: String,
         if (path.startsWith(pathToDownload)) {
           if (!messageAndTopic.message().isEmpty) {
             debug("Trying to decode file bit")
-            val decoder = DecoderFactory.get().binaryDecoder(messageAndTopic.message(), null)
-            val record = datumReader.read(datum, decoder)
+            val record = decoder.decode(messageAndTopic.message())
             debug("File bit has been decoded")
 
             val parent = path.getParent
@@ -104,7 +103,7 @@ class KafkaDownloader(topic: String,
             }
 
             debug("Trying to write data for file %s".format(path.toString))
-            out.write(record.get("data").asInstanceOf[ByteBuffer].array())
+            out.write(record.data)
             out.flush()
             debug("Wrote data for file %s".format(path.toString))
 
