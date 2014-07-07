@@ -31,7 +31,6 @@ import java.nio.file.attribute.BasicFileAttributes
 import kafka.producer.KeyedMessage
 import java.util
 import java.nio.ByteBuffer
-import java.nio.charset.Charset
 
 class KafkaUploader(brokerList: String,
 
@@ -120,9 +119,12 @@ class KafkaUploader(brokerList: String,
     } else {
       uploadFile(basePath, topic, metadataOnly)
     }
+  }
+
+  def close() = {
     producer.close()
   }
-  
+
   private def uploadFile(file: Path, topic: String, metadataOnly: Boolean) {
     val path = file.toString
     val fileName = file.getFileName.toString

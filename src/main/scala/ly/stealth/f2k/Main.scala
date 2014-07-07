@@ -26,6 +26,7 @@ object Main extends App {
   if (args(0) == "upload") {
     val uploader = new KafkaUploader(args(3))
     uploader.upload(args(1), args(2), args(4).toBoolean)
+    uploader.close()
   } else if (args(0) == "download") {
     val downloader = new KafkaDownloader(args(2), "group", args(3))
     downloader.download(Paths.get(args(1)))
