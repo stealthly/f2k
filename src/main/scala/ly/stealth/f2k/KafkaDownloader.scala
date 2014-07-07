@@ -24,7 +24,7 @@ import kafka.serializer.StringDecoder
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericRecord}
 import org.apache.avro.Schema.Parser
 import java.io._
-import java.nio.file.{StandardOpenOption, Paths, Files}
+import java.nio.file.{Path, StandardOpenOption, Paths, Files}
 import org.apache.avro.io.DecoderFactory
 import kafka.consumer.Whitelist
 import java.util.concurrent.TimeUnit
@@ -58,14 +58,10 @@ class KafkaDownloader(topic: String,
   val datumReader = new GenericDatumReader[GenericRecord](schema)
   val datum = new GenericData.Record(schema)
 
-  def download(pathToDownload: String, destination: String, partition: Int) = {
-    val basePath = Paths.get(destination).resolve(pathToDownload)
-    if (!Files.exists(basePath)) {
-      Files.createDirectory(basePath)
-    }
+  def download(pathToDownload: Path) = {
     val it = stream.iterator()
     try {
-      var currentFile = ""
+      var current = Paths.get("")
       var out: BufferedOutputStream = null
 
       lastUpdate = System.currentTimeMillis()
@@ -76,40 +72,39 @@ class KafkaDownloader(topic: String,
         debug("Trying to download file bit")
         val messageAndTopic = it.next()
         debug("Downloaded file bit")
-        if (messageAndTopic.key() == pathToDownload && messageAndTopic.partition == partition) {
+        val path = Paths.get(messageAndTopic.key())
+        if (path.startsWith(pathToDownload)) {
           if (!messageAndTopic.message().isEmpty) {
             debug("Trying to decode file bit")
             val decoder = DecoderFactory.get().jsonDecoder(schema, messageAndTopic.message())
             val record = datumReader.read(datum, decoder)
             debug("File bit has been decoded")
 
-            val relativePath = record.get("path").toString
-            val path = if (relativePath == "/") basePath else basePath.resolve(record.get("path").toString)
-            if (!Files.exists(path)) {
-              trace("Directory %s does not exist, trying to create".format(path.toString))
-              Files.createDirectories(path)
-              trace("Сreated directory %s".format(path.toString))
+            val parent = path.getParent
+            if (!Files.exists(parent)) {
+              trace("Directory %s does not exist, trying to create".format(parent.toString))
+              Files.createDirectories(parent)
+              trace("Сreated directory %s".format(parent.toString))
             }
 
-            if (currentFile != record.get("name").toString) {
-              debug("File %s has been successfully downloaded".format(currentFile))
+            if (path != current) {
+              debug("File %s has been successfully downloaded".format(current.toString))
 
-              trace("Trying to close out for file %s".format(currentFile))
+              trace("Trying to close out for file %s".format(current.toString))
               if (out != null) out.close()
-              trace("Сlosed out for file %s".format(currentFile))
+              trace("Сlosed out for file %s".format(current.toString))
 
-              currentFile = record.get("name").toString
+              current = path
 
-              trace("Trying to create new out for file %s".format(currentFile))
-              out = new BufferedOutputStream(Files.newOutputStream(path.resolve(record.get("name").toString),
-                                                                      StandardOpenOption.APPEND, StandardOpenOption.CREATE))
-              trace("Created new out for file %s".format(currentFile))
+              trace("Trying to create new out for file %s".format(current.toString))
+              out = new BufferedOutputStream(Files.newOutputStream(path, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
+              trace("Created new out for file %s".format(current.toString))
             }
 
-            debug("Trying to write data for file %s".format(currentFile))
+            debug("Trying to write data for file %s".format(path.toString))
             out.write(record.get("data").asInstanceOf[ByteBuffer].array())
             out.flush()
-            debug("Wrote data for file %s".format(currentFile))
+            debug("Wrote data for file %s".format(path.toString))
 
             lastUpdate = System.currentTimeMillis()
           }

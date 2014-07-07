@@ -108,36 +108,30 @@ class KafkaUploader(brokerList: String,
   val schema = new Parser().parse(Thread.currentThread.getContextClassLoader.getResourceAsStream("avro/file.asvc"))
   val writer = new GenericDatumWriter[Record](schema)
 
-  def upload(rawBasePath: String, topic: String, partition: Int, metadataOnly: Boolean = false) = {
+  def upload(rawBasePath: String, topic: String, metadataOnly: Boolean = false) = {
     val basePath: Path = Paths.get(rawBasePath)
-    val baseFileName: String = basePath.getFileName.toString
     if (Files.isDirectory(basePath)) {
       Files.walkFileTree(basePath, new SimpleFileVisitor[Path]() {
         override def visitFile(file: Path, attrs: BasicFileAttributes) = {
-          uploadFile(file, basePath, baseFileName, topic, partition, metadataOnly)
+          uploadFile(file, topic, metadataOnly)
           FileVisitResult.CONTINUE
         }
       })
     } else {
-      uploadFile(basePath, basePath, baseFileName, topic, partition, metadataOnly)
+      uploadFile(basePath, topic, metadataOnly)
     }
     producer.close()
   }
   
-  private def uploadFile(file: Path, basePath: Path, baseFileName: String, topic: String, partition: Int, metadataOnly: Boolean) {
-    val fileName: String = file.getFileName.toString
-    var parentPath: String = ""
-    if (!file.equals(basePath)) {
-      parentPath = basePath.relativize(file.getParent).toString
-    }
-    val record = new Record(schema)
-    record.put("path", parentPath)
-    record.put("name", fileName)
+  private def uploadFile(file: Path, topic: String, metadataOnly: Boolean) {
+    val path = file.toString
+    val fileName = file.getFileName.toString
 
+    val record = new Record(schema)
     if (!metadataOnly) uploadData()
     else {
       record.put("data", "")
-      send(topic, baseFileName, partition, record)
+      send(topic, path, fileName, record)
     }
 
     def uploadData() {
@@ -149,7 +143,7 @@ class KafkaUploader(brokerList: String,
           if (bytesRead < bytes.length) record.put("data", ByteBuffer.wrap(util.Arrays.copyOf(bytes, bytesRead)))
           else record.put("data", ByteBuffer.wrap(bytes))
 
-          send(topic, baseFileName, partition, record)
+          send(topic, path, fileName, record)
           bytesRead = in.read(bytes)
         }
       } finally {
@@ -158,8 +152,8 @@ class KafkaUploader(brokerList: String,
     }
   }
 
-  private def send(topic: String, key: String, partition: Int, record: Record) = {
-    producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), partition, serialized.getBytes("UTF-8")))
+  private def send(topic: String, key: String, fileName: String, record: Record) = {
+    producer.send(new KeyedMessage(topic, key.getBytes("UTF-8"), fileName, serialized.getBytes("UTF-8")))
 
     def serialized = {
       val out: ByteArrayOutputStream = new ByteArrayOutputStream()

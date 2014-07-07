@@ -17,16 +17,18 @@
 
 package ly.stealth.f2k
 
+import java.nio.file.Paths
+
 object Main extends App {
-  if (args.length < 5)
-    throw new IllegalArgumentException("Usage: (download|upload) (pathToUpload|directoryToDownload) kafkaTopic (kafkaConnect|zookeeperConnect) (downloadLocation|metadataOnly) partition")
+  if (args.length < 4)
+    throw new IllegalArgumentException("Usage: (download|upload) (pathToUpload|directoryToDownload) kafkaTopic (kafkaConnect|zookeeperConnect) metadataOnly")
 
   if (args(0) == "upload") {
     val uploader = new KafkaUploader(args(3))
-    uploader.upload(args(1), args(2), args(5).toInt, args(4).toBoolean)
+    uploader.upload(args(1), args(2), args(4).toBoolean)
   } else if (args(0) == "download") {
     val downloader = new KafkaDownloader(args(2), "group", args(3))
-    downloader.download(args(1), args(4), args(5).toInt)
+    downloader.download(Paths.get(args(1)))
     downloader.close()
   } else {
     throw new IllegalArgumentException("You should provide either upload or download option")

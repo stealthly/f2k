@@ -4,14 +4,6 @@
   "name" : "FileType",
   "fields" : [
     {
-        "name" : "path",
-        "type" : "string"
-    },
-    {
-        "name" : "name",
-        "type" : "string"
-    },
-    {
         "name" : "data",
         "type" : "bytes"
     }
